@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  symbol TEXT NOT NULL,
+  quantity INT NOT NULL,
+  price DECIMAL(12, 2) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+);

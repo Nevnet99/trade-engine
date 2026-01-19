@@ -1,0 +1,46 @@
+version: '3'
+
+dotenv: ['.env'] # Automatically loads your .env file!
+
+tasks:
+  default:
+    cmds:
+      - task: run
+
+  up:
+    desc: Start the database container
+    cmds:
+      - docker compose up -d
+
+  down:
+    desc: Stop and remove the database container
+    cmds:
+      - docker compose down
+  
+  restart: 
+    desc: Restart the database container
+    cmds:
+      - task: down
+      - task: up
+
+  logs:
+    desc: Follow the database logs
+    cmds:
+      - docker compose logs -f
+
+  db-shell:
+    desc: Connect to the running Postgres DB via CLI
+    cmds:
+      - docker compose exec db psql -U $DB_USER -d $DB_NAME
+
+  run:
+    desc: Run the Go application locally
+    cmds:
+      - go run main.go
+
+  build:
+    desc: Compile the Go binary
+    cmds:
+      - mkdir -p bin
+      - go build -o bin/trade-engine main.go
+
