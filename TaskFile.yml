@@ -15,13 +15,18 @@ tasks:
   down:
     desc: Stop and remove the database container
     cmds:
-      - docker compose down
+      - docker compose down -v
   
   restart: 
     desc: Restart the database container
     cmds:
       - task: down
       - task: up
+
+  test: 
+    desc: Run the test suite
+    cmds:
+      - gotestsum --format testname -- ./...
 
   logs:
     desc: Follow the database logs
