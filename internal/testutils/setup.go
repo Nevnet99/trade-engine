@@ -11,7 +11,23 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func SetupTestDB(t *testing.T) pgx.Tx {
+type TestTx struct {
+	pgx.Tx
+}
+
+func (t *TestTx) Begin(ctx context.Context) (pgx.Tx, error) {
+	return t, nil
+}
+
+func (t *TestTx) Commit(ctx context.Context) error {
+	return nil
+}
+
+func (t *TestTx) Rollback(ctx context.Context) error {
+	return nil
+}
+
+func SetupTestDB(t *testing.T) *TestTx {
 	t.Helper()
 
 	_ = godotenv.Load("../../.env")
@@ -25,7 +41,6 @@ func SetupTestDB(t *testing.T) pgx.Tx {
 	)
 
 	pool, err := pgxpool.New(context.Background(), connStr)
-
 	if err != nil {
 		t.Fatalf("Failed to connect to DB: %v", err)
 	}
@@ -43,5 +58,5 @@ func SetupTestDB(t *testing.T) pgx.Tx {
 		tx.Rollback(context.Background())
 	})
 
-	return tx
+	return &TestTx{Tx: tx}
 }

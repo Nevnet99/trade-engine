@@ -3,14 +3,18 @@ package store
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type Order struct {
-	ID       string
-	Symbol   string
-	Price    float64
-	Quantity int
-	Side     string
+	ID             string
+	Symbol         string
+	Price          float64
+	Quantity       int
+	Side           string
+	Status         string
+	CreatedAt      time.Time
+	FilledQuantity int
 }
 
 type OrderSide string
@@ -57,4 +61,61 @@ func (s *Storage) CreateOrder(ctx context.Context, order Order) (string, error) 
 	}
 
 	return id, nil
+}
+
+func (s *Storage) GetBestBuyOrder(ctx context.Context, symbol string) (*Order, error) {
+	var o Order
+
+	query := `
+	SELECT id, symbol, quantity, price, side, status, created_at
+        FROM orders
+        WHERE symbol = $1 AND side = 'BUY'
+        ORDER BY price DESC
+        LIMIT 1
+				`
+
+	err := s.db.QueryRow(ctx, query, symbol).Scan(
+		&o.ID,
+		&o.Symbol,
+		&o.Quantity,
+		&o.Price,
+		&o.Side,
+		&o.Status,
+		&o.CreatedAt,
+	)
+
+	if err != nil {
+
+		if err.Error() == "no rows in result set" {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &o, nil
+
+}
+
+func (s *Storage) GetBestSellOrder(ctx context.Context, symbol string) (*Order, error) {
+	var o Order
+
+	query := `
+        SELECT id, symbol, price, quantity, filled_quantity, side, status, created_at
+        FROM orders
+        WHERE symbol = $1 AND side = 'SELL' AND status = 'PENDING'
+        ORDER BY price ASC, created_at ASC
+        LIMIT 1`
+
+	err := s.db.QueryRow(ctx, query, symbol).Scan(
+		&o.ID, &o.Symbol, &o.Price, &o.Quantity, &o.FilledQuantity,
+		&o.Side, &o.Status, &o.CreatedAt,
+	)
+
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &o, nil
 }

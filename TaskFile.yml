@@ -27,6 +27,11 @@ tasks:
     desc: Run the test suite
     cmds:
       - gotestsum --format testname -- ./...
+  
+  test-verbose:
+    desc: Runs the test suite in verbose mode (no cache)
+    cmds: 
+      - gotestsum --format standard-verbose -- -count=1 ./...
 
   logs:
     desc: Follow the database logs
