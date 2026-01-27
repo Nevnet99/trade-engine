@@ -1,9 +1,9 @@
 name: Trade Engine CI
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
+  push:
     branches: [ "main" ]
 
 jobs:
@@ -24,19 +24,30 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
-
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
         go-version: '1.24'
-
     - name: Build
       run: go build -v ./...
+    - name: Run Migrations
+      run: |
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+            
+            until pg_isready -h localhost -p 5432 -U testuser; do
+              echo "Waiting for postgres..."
+              sleep 2
+            done
 
+  
+            for file in migrations/*.sql; do
+                echo "Applying migration: $file"
+                psql "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" -f "$file"
+            done
     - name: Run Integration Tests
       env:
         DB_USER: testuser      

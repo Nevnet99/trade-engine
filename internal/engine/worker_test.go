@@ -11,12 +11,12 @@ import (
 
 func TestProcessMatches_MultiFill(t *testing.T) {
 	tx := testutils.SetupTestDB(t)
+
 	storage := store.NewStorage(tx)
 	ctx := context.Background()
 	engine := New(storage)
 
-	defer tx.Conn().Close(ctx)
-
+	// 2. Seed Data
 	whaleOrder := store.Order{
 		Symbol: "BTC-USD", Side: "BUY", Price: 50000, Quantity: 10,
 	}
