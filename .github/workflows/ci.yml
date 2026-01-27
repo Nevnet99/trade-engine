@@ -35,8 +35,19 @@ jobs:
       run: go build -v ./...
     - name: Run Migrations
       run: |
-        curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.1/migrate.linux-amd64.tar.gz | tar xvz
-        ./migrate -path ./migrations -database "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" up
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+            
+            until pg_isready -h localhost -p 5432 -U testuser; do
+              echo "Waiting for postgres..."
+              sleep 2
+            done
+
+  
+            for file in migrations/*.sql; do
+                echo "Applying migration: $file"
+                psql "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" -f "$file"
+            done
     - name: Run Integration Tests
       env:
         DB_USER: testuser      
