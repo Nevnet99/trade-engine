@@ -36,7 +36,7 @@ jobs:
     - name: Run Migrations
       run: |
         curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.1/migrate.linux-amd64.tar.gz | tar xvz
-        ./migrate -path migrations -database "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" up
+        ./migrate -path ./migrations -database "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" up
     - name: Run Integration Tests
       env:
         DB_USER: testuser      
