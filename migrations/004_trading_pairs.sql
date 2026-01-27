@@ -1,4 +1,3 @@
--- 1. Create the table to store supported pairs
 CREATE TABLE IF NOT EXISTS trading_pairs (
     symbol TEXT PRIMARY KEY,    
     base_asset TEXT NOT NULL,     
