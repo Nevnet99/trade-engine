@@ -38,13 +38,22 @@ func (m *MatchingEngine) ProcessMatches(ctx context.Context) {
 			slog.Info("Matching Engine shutting down...")
 			return
 		case <-ticker.C:
-			m.runMatchingCycle(ctx)
+			tradingPairs, err := m.store.GetActiveTradingPairs(ctx)
+
+			if err != nil {
+				slog.Error("failed to get active trading pairs", "error", err)
+				continue
+			}
+
+			for _, pair := range tradingPairs {
+				m.runMatchingCycle(ctx, pair.Symbol)
+			}
+
 		}
 	}
 }
 
-func (m *MatchingEngine) runMatchingCycle(ctx context.Context) {
-	symbol := "BTC-USD"
+func (m *MatchingEngine) runMatchingCycle(ctx context.Context, symbol string) {
 
 	for {
 		buyOrder, err := m.store.GetBestBuyOrder(ctx, symbol)
