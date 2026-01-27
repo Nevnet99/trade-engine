@@ -62,6 +62,7 @@ func TestCreateTrade(t *testing.T) {
 			var buyID, sellID string
 			for _, o := range tc.setupOrders {
 				id, err := storage.CreateOrder(ctx, o)
+
 				if err != nil {
 					t.Fatalf("Setup failed: %v", err)
 				}
