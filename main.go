@@ -51,6 +51,7 @@ func main() {
 	r.Use(middleware.Logger)
 
 	r.Post("/trade", server.CreateOrder)
+	r.Get("/pairs", server.HandleGetPairs)
 
 	slog.Info("Starting server on :8080")
 	http.ListenAndServe(":8080", r)
