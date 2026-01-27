@@ -7,7 +7,7 @@ import (
 )
 
 type Trade struct {
-	ID        int       `json:"id"`
+	ID        string    `json:"id"`
 	BuyerID   string    `json:"buyer_id"`
 	SellerID  string    `json:"seller_id"`
 	Price     float64   `json:"price"`
@@ -15,11 +15,10 @@ type Trade struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// WIP
-
 func (s *Storage) CreateTrade(ctx context.Context, price float64, qty int, buyerOrderID, sellerOrderID string) error {
 
 	tx, err := s.db.Begin(ctx)
+
 	if err != nil {
 		return err
 	}
@@ -35,13 +34,21 @@ func (s *Storage) CreateTrade(ctx context.Context, price float64, qty int, buyer
 		return fmt.Errorf("failed to insert trade: %w", err)
 	}
 
-	buyerQuery := `...`
+	buyerQuery := `
+	UPDATE orders
+  SET quantity = quantity - $1
+  WHERE id = $2
+	`
 
 	if _, err := tx.Exec(ctx, buyerQuery, qty, buyerOrderID); err != nil {
 		return fmt.Errorf("failed to update buyer: %w", err)
 	}
 
-	sellerQuery := `...`
+	sellerQuery := `
+	UPDATE orders
+  SET quantity = quantity - $1
+  WHERE id = $2
+	`
 
 	if _, err := tx.Exec(ctx, sellerQuery, qty, sellerOrderID); err != nil {
 		return fmt.Errorf("failed to update seller: %w", err)

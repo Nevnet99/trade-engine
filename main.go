@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/Nevnet99/trade-engine/internal/api"
+	"github.com/Nevnet99/trade-engine/internal/engine"
 	"github.com/Nevnet99/trade-engine/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -40,6 +41,11 @@ func main() {
 
 	storage := store.NewStorageFromPool(pool)
 	server := api.NewServer(storage)
+
+	matchingEngine := engine.New(storage)
+
+	slog.Info("Starting Matching Engine...")
+	go matchingEngine.ProcessMatches(context.Background())
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)

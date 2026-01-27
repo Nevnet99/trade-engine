@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/Nevnet99/trade-engine/internal/store"
 )
@@ -26,43 +27,67 @@ func min(a int, b int) int {
 }
 
 func (m *MatchingEngine) ProcessMatches(ctx context.Context) {
-	var symbol = "BTC-USD"
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
-	buyOrder, buyOrderError := m.store.GetBestBuyOrder(ctx, symbol)
+	slog.Info("Matching Engine Worker Started")
 
-	if buyOrderError != nil {
-		slog.Info("Buy Order Error")
-		return
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("Matching Engine shutting down...")
+			return
+		case <-ticker.C:
+			m.runMatchingCycle(ctx)
+		}
 	}
+}
 
-	if buyOrder == nil {
-		return
-	}
+func (m *MatchingEngine) runMatchingCycle(ctx context.Context) {
+	symbol := "BTC-USD"
 
-	sellOrder, sellOrderError := m.store.GetBestSellOrder(ctx, symbol)
+	for {
+		buyOrder, err := m.store.GetBestBuyOrder(ctx, symbol)
+		if err != nil {
+			slog.Error("Failed to fetch best buy order", "error", err)
+			return
+		}
 
-	if sellOrderError != nil {
-		slog.Info("Sell Order Error")
-		return
-	}
+		if buyOrder == nil {
+			return
+		}
 
-	if sellOrder == nil {
-		return
-	}
+		sellOrder, err := m.store.GetBestSellOrder(ctx, symbol)
+		if err != nil {
+			slog.Error("Failed to fetch best sell order", "error", err)
+			return
+		}
 
-	if buyOrder.Price >= sellOrder.Price {
-		var buyQuantity = buyOrder.Quantity - buyOrder.FilledQuantity
-		var sellQuantity = sellOrder.Quantity - sellOrder.FilledQuantity
-		var tradeQuantity = min(buyQuantity, sellQuantity)
-		var tradePrice float64
+		if sellOrder == nil {
+			return
+		}
 
-		if buyOrder.CreatedAt.Before(sellOrder.CreatedAt) {
-			tradePrice = buyOrder.Price
-		} else {
+		if buyOrder.Price < sellOrder.Price {
+			return
+		}
+
+		tradeQuantity := min(buyOrder.Quantity, sellOrder.Quantity)
+		if tradeQuantity <= 0 {
+			slog.Info("Order filled or empty, skipping match")
+			return
+		}
+
+		tradePrice := buyOrder.Price
+		if sellOrder.CreatedAt.Before(buyOrder.CreatedAt) {
 			tradePrice = sellOrder.Price
 		}
 
 		slog.Info("Match Found", "qty", tradeQuantity, "price", tradePrice)
-	}
 
+		err = m.store.CreateTrade(ctx, tradePrice, tradeQuantity, buyOrder.ID, sellOrder.ID)
+		if err != nil {
+			slog.Error("Failed to execute trade", "error", err)
+			return
+		}
+	}
 }
