@@ -7,14 +7,13 @@ import (
 )
 
 type Order struct {
-	ID        string
-	Symbol    string
-	Price     float64
-	Quantity  int
-	Side      string
-	Status    string
-	CreatedAt time.Time
-	// FilledQuantity removed to match DB schema simplicity
+	ID        string    `json:"id"`
+	Symbol    string    `json:"symbol"`
+	Price     float64   `json:"price"`
+	Quantity  int       `json:"quantity"`
+	Side      string    `json:"side"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type OrderSide string
@@ -63,7 +62,6 @@ func (s *Storage) CreateOrder(ctx context.Context, order Order) (string, error) 
 func (s *Storage) GetBestBuyOrder(ctx context.Context, symbol string) (*Order, error) {
 	var o Order
 
-	// FIX: Select exactly 7 columns to match the 7 Scan variables below
 	query := `
     SELECT id, symbol, quantity, price, side, status, created_at 
     FROM orders 
@@ -95,9 +93,6 @@ func (s *Storage) GetBestBuyOrder(ctx context.Context, symbol string) (*Order, e
 func (s *Storage) GetBestSellOrder(ctx context.Context, symbol string) (*Order, error) {
 	var o Order
 
-	// FIX: Removed 'filled_quantity' (likely doesn't exist in DB).
-	// FIX: Added 'quantity > 0' check to prevent infinite loops.
-	// FIX: Selected exactly 7 columns to match Scan.
 	query := `
     SELECT id, symbol, quantity, price, side, status, created_at
     FROM orders
@@ -122,4 +117,85 @@ func (s *Storage) GetBestSellOrder(ctx context.Context, symbol string) (*Order, 
 		return nil, err
 	}
 	return &o, nil
+}
+
+type OrderBookEntry struct {
+	Price    float64 `json:"price"`
+	Quantity float64 `json:"quantity"`
+}
+
+type OrderBook struct {
+	Bids []OrderBookEntry `json:"bids"`
+	Asks []OrderBookEntry `json:"asks"`
+}
+
+func (s *Storage) GetOrderBook(ctx context.Context, symbol string) (*OrderBook, error) {
+
+	bidsSlice := []OrderBookEntry{}
+	asksSlice := []OrderBookEntry{}
+	var o OrderBook
+
+	buyQuery := `
+	SELECT price, SUM(quantity) 
+		FROM orders 
+		WHERE symbol = $1 AND side = 'BUY' AND status = 'PENDING' 
+		GROUP BY price 
+		ORDER BY price DESC 
+		LIMIT 20
+	`
+
+	bidsRows, bidsErrors := s.db.Query(ctx, buyQuery, symbol)
+
+	if bidsErrors != nil {
+		return nil, bidsErrors
+	}
+
+	defer bidsRows.Close()
+
+	for bidsRows.Next() {
+		oe := OrderBookEntry{}
+
+		rowError := bidsRows.Scan(&oe.Price, &oe.Quantity)
+
+		if rowError != nil {
+			return nil, fmt.Errorf("failed to fetch Trading Pair Row: %w", rowError)
+		}
+
+		bidsSlice = append(bidsSlice, oe)
+	}
+
+	sellQuery := `
+	SELECT price, SUM(quantity) 
+		FROM orders 
+		WHERE symbol = $1 AND side = 'SELL' AND status = 'PENDING' 
+		GROUP BY price 
+		ORDER BY price ASC 
+		LIMIT 20
+	`
+
+	asksRows, asksErrors := s.db.Query(ctx, sellQuery, symbol)
+
+	if asksErrors != nil {
+		return nil, asksErrors
+	}
+
+	defer asksRows.Close()
+
+	for asksRows.Next() {
+		oe := OrderBookEntry{}
+
+		rowError := asksRows.Scan(&oe.Price, &oe.Quantity)
+
+		if rowError != nil {
+			return nil, fmt.Errorf("failed to fetch Trading Pair Row: %w", rowError)
+		}
+
+		asksSlice = append(asksSlice, oe)
+	}
+
+	o.Asks = asksSlice
+	o.Bids = bidsSlice
+
+	return &o, nil
+
 }
