@@ -48,3 +48,32 @@ func (s *Server) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{"trade_id": id})
 }
+
+func (s *Server) HandleGetOrderBook(w http.ResponseWriter, r *http.Request) {
+	params := r.URL.Query()
+
+	symbol := params.Get("symbol")
+
+	if symbol == "" || !params.Has("symbol") {
+		http.Error(w, "No query parameter set", http.StatusBadRequest)
+		return
+	}
+
+	orderBook, err := s.store.GetOrderBook(r.Context(), symbol)
+
+	if err != nil {
+		slog.Error("Failed to get order book", "error", err)
+		http.Error(w, "Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	response := map[string]any{
+		"orderBook": orderBook,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.Error("failed to encode response", "error", err)
+	}
+}

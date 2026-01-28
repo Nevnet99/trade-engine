@@ -2,7 +2,9 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -65,4 +67,77 @@ func TestCreateOrderAPI(t *testing.T) {
 
 		})
 	}
+}
+
+func TestHandleGetOrderBook(t *testing.T) {
+
+	tx := testutils.SetupTestDB(t)
+	s := NewServer(store.NewStorage(tx))
+	ctx := context.Background()
+
+	_, err := tx.Exec(ctx, `
+		INSERT INTO trading_pairs (symbol, base_asset, quote_asset, is_active) 
+		VALUES ('BTC-USD', 'BTC', 'USD', true)
+		ON CONFLICT DO NOTHING
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO orders (symbol, side, price, quantity, status) VALUES 
+		('BTC-USD', 'BUY', 50000, 1, 'PENDING'),
+		('BTC-USD', 'BUY', 50000, 2, 'PENDING'), 
+		('BTC-USD', 'SELL', 51000, 5, 'PENDING')
+	`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("Returns 200 and OrderBook for valid symbol", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/orderbook?symbol=BTC-USD", nil)
+		rec := httptest.NewRecorder()
+
+		s.HandleGetOrderBook(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("Expected 200 OK, got %d", rec.Code)
+		}
+
+		var response map[string]store.OrderBook
+
+		if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+			t.Fatal("Failed to decode JSON response", err)
+		}
+
+		book, exists := response["orderBook"]
+
+		if !exists {
+			t.Fatal("Response missing 'orderBook' key")
+		}
+
+		if len(book.Bids) != 1 {
+			t.Errorf("Expected 1 bid level, got %d", len(book.Bids))
+		}
+
+		if book.Bids[0].Quantity != 3 {
+			t.Errorf("Expected aggregated bid quantity 3, got %v", book.Bids[0].Quantity)
+		}
+
+		if len(book.Asks) != 1 {
+			t.Errorf("Expected 1 ask level, got %d", len(book.Asks))
+		}
+	})
+
+	t.Run("Returns 400 when symbol is missing", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/orderbook", nil) // No query param
+		rec := httptest.NewRecorder()
+
+		s.HandleGetOrderBook(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("Expected 400 Bad Request, got %d", rec.Code)
+		}
+	})
 }
