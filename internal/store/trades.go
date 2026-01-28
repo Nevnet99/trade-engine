@@ -56,3 +56,44 @@ func (s *Storage) CreateTrade(ctx context.Context, price float64, qty int, buyer
 
 	return tx.Commit(ctx)
 }
+
+func (s *Storage) GetRecentTrades(ctx context.Context, symbol string) ([]Trade, error) {
+	trades := []Trade{}
+
+	query := `
+		SELECT t.id, t.bid_order_id, t.ask_order_id, t.price, t.quantity, t.timestamp 
+		FROM trades t
+		JOIN orders o ON t.bid_order_id = o.id
+		WHERE o.symbol = $1 
+		ORDER BY t.timestamp DESC
+		LIMIT 50
+	`
+
+	rows, err := s.db.Query(ctx, query, symbol)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch Recent Trades: %w", err)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		t := Trade{}
+
+		if err := rows.Scan(
+			&t.ID,
+			&t.BuyerID,
+			&t.SellerID,
+			&t.Price,
+			&t.Quantity,
+			&t.Timestamp,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan trade: %w", err)
+		}
+
+		trades = append(trades, t)
+	}
+
+	return trades, nil
+
+}
