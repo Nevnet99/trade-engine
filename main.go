@@ -54,6 +54,7 @@ func main() {
 	r.Get("/pairs", server.HandleGetPairs)
 	r.Get("/orderbook", server.HandleGetOrderBook)
 	r.Get("/trades", server.HandleGetRecentTrades)
+	r.Get("/kline", server.HandleGetKlines)
 
 	slog.Info("Starting server on :8080")
 	http.ListenAndServe(":8080", r)
