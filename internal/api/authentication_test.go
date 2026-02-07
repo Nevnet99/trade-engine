@@ -10,6 +10,7 @@ import (
 
 	"github.com/Nevnet99/trade-engine/internal/store"
 	"github.com/Nevnet99/trade-engine/internal/testutils"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestHandleCreateUser(t *testing.T) {
@@ -75,6 +76,89 @@ func TestHandleCreateUser(t *testing.T) {
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("Expected status 400 Bad Request, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandleLoginUser(t *testing.T) {
+	tx := testutils.SetupTestDB(t)
+	storage := store.NewStorage(tx)
+	s := NewServer(storage)
+	ctx := context.Background()
+
+	password := "secure_password"
+	hashedBytes, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+	existingUser := &store.User{
+		Username:     "trader_joe",
+		PasswordHash: string(hashedBytes),
+	}
+
+	if _, err := storage.CreateUser(ctx, existingUser); err != nil {
+		t.Fatalf("Failed to seed user: %v", err)
+	}
+
+	t.Run("Happy Path_LoginSuccess", func(t *testing.T) {
+		payload := map[string]string{
+			"username": "trader_joe",
+			"password": "secure_password",
+		}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBuffer(body))
+		w := httptest.NewRecorder()
+
+		s.HandleLoginUser(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200 OK, got %d. Body: %s", w.Code, w.Body.String())
+		}
+
+		cookies := w.Result().Cookies()
+		foundToken := false
+
+		for _, c := range cookies {
+			if c.Name == "auth_token" {
+				foundToken = true
+				if c.HttpOnly == false {
+					t.Error("Expected auth_token cookie to be HttpOnly")
+				}
+			}
+		}
+
+		if !foundToken {
+			t.Error("Expected auth_token cookie to be present")
+		}
+	})
+
+	t.Run("Wrong Password_Returns_401", func(t *testing.T) {
+		payload := map[string]string{
+			"username": "trader_joe",
+			"password": "wrong_password",
+		}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBuffer(body))
+		w := httptest.NewRecorder()
+
+		s.HandleLoginUser(w, req)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401 Unauthorized, got %d", w.Code)
+		}
+	})
+
+	t.Run("User Not Found_Returns_401", func(t *testing.T) {
+		payload := map[string]string{
+			"username": "ghost_user",
+			"password": "password",
+		}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBuffer(body))
+		w := httptest.NewRecorder()
+
+		s.HandleLoginUser(w, req)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401 Unauthorized, got %d", w.Code)
 		}
 	})
 }

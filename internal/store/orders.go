@@ -8,6 +8,7 @@ import (
 
 type Order struct {
 	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
 	Symbol    string    `json:"symbol"`
 	Price     float64   `json:"price"`
 	Quantity  int       `json:"quantity"`
@@ -45,12 +46,17 @@ func (s *Storage) CreateOrder(ctx context.Context, order Order) (string, error) 
 	}
 
 	query := `
-    INSERT INTO orders (symbol, price, quantity, side, status) 
-    VALUES ($1, $2, $3, $4, 'PENDING') 
+    INSERT INTO orders (user_id, symbol, price, quantity, side, status) 
+    VALUES ($1, $2, $3, $4, $5, 'PENDING') 
     RETURNING id`
 
 	err := s.db.QueryRow(ctx, query,
-		order.Symbol, order.Price, order.Quantity, order.Side).Scan(&id)
+		order.UserID,
+		order.Symbol,
+		order.Price,
+		order.Quantity,
+		order.Side,
+	).Scan(&id)
 
 	if err != nil {
 		return "", err
@@ -63,15 +69,16 @@ func (s *Storage) GetBestBuyOrder(ctx context.Context, symbol string) (*Order, e
 	var o Order
 
 	query := `
-    SELECT id, symbol, quantity, price, side, status, created_at 
+    SELECT id, user_id, symbol, quantity, price, side, status, created_at 
     FROM orders 
-    WHERE symbol = $1 AND side = 'BUY' AND quantity > 0
+    WHERE symbol = $1 AND side = 'BUY' AND quantity > 0 AND status = 'PENDING'
     ORDER BY price DESC, created_at ASC 
     LIMIT 1
     `
 
 	err := s.db.QueryRow(ctx, query, symbol).Scan(
 		&o.ID,
+		&o.UserID,
 		&o.Symbol,
 		&o.Quantity,
 		&o.Price,
@@ -94,14 +101,15 @@ func (s *Storage) GetBestSellOrder(ctx context.Context, symbol string) (*Order, 
 	var o Order
 
 	query := `
-    SELECT id, symbol, quantity, price, side, status, created_at
+    SELECT id, user_id, symbol, quantity, price, side, status, created_at
     FROM orders
-    WHERE symbol = $1 AND side = 'SELL' AND quantity > 0
+    WHERE symbol = $1 AND side = 'SELL' AND quantity > 0 AND status = 'PENDING'
     ORDER BY price ASC, created_at ASC
     LIMIT 1`
 
 	err := s.db.QueryRow(ctx, query, symbol).Scan(
 		&o.ID,
+		&o.UserID,
 		&o.Symbol,
 		&o.Quantity,
 		&o.Price,

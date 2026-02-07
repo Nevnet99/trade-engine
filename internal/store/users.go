@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -15,6 +16,7 @@ type User struct {
 }
 
 var ErrDuplicateUser = fmt.Errorf("username already taken")
+var ErrUserNotFound = fmt.Errorf("cannot find user with that username")
 
 func (s *Storage) CreateUser(ctx context.Context, user *User) (*User, error) {
 	tx, err := s.db.Begin(ctx)
@@ -57,4 +59,29 @@ func (s *Storage) CreateUser(ctx context.Context, user *User) (*User, error) {
 	}
 
 	return user, nil
+}
+
+func (s *Storage) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+	u := User{}
+
+	query := `
+		SELECT id, username, password_hash
+		FROM users
+		WHERE username = $1
+	`
+
+	err := s.db.QueryRow(ctx, query, username).Scan(
+		&u.ID,
+		&u.Username,
+		&u.PasswordHash,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return &u, nil
 }

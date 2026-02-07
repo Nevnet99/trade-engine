@@ -50,11 +50,25 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 
-	r.Post("/trade", server.CreateOrder)
+	// Public
+
 	r.Get("/pairs", server.HandleGetPairs)
 	r.Get("/orderbook", server.HandleGetOrderBook)
 	r.Get("/trades", server.HandleGetRecentTrades)
 	r.Get("/kline", server.HandleGetKlines)
+
+	// Authentication
+
+	r.Post("/register", server.HandleCreateUser)
+	r.Post("/login", server.HandleLoginUser)
+
+	// Protected
+
+	r.Group(func(r chi.Router) {
+		r.Use(server.AuthMiddleware)
+
+		r.Post("/trade", server.CreateOrder)
+	})
 
 	slog.Info("Starting server on :8080")
 	http.ListenAndServe(":8080", r)

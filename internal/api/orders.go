@@ -24,7 +24,15 @@ func (s *Server) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := r.Context().Value(UserIDKey).(string)
+
+	if !ok {
+		http.Error(w, "Unauthorized: User ID missing", http.StatusUnauthorized)
+		return
+	}
+
 	order := store.Order{
+		UserID:   userID,
 		Symbol:   params.Symbol,
 		Price:    params.Price,
 		Quantity: params.Quantity,
@@ -34,7 +42,6 @@ func (s *Server) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	id, err := s.store.CreateOrder(r.Context(), order)
 
 	if err != nil {
-
 		if errors.Is(err, store.ErrValidation) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
