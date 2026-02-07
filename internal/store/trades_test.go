@@ -15,6 +15,13 @@ func TestCreateTrade(t *testing.T) {
 
 	defer tx.Conn().Close(ctx)
 
+	user := User{Username: "trade_tester", PasswordHash: "hash"}
+
+	u, err := storage.CreateUser(ctx, &user)
+	if err != nil {
+		t.Fatalf("Failed to create test user for trade setup: %v", err)
+	}
+
 	tests := []struct {
 		name          string
 		setupOrders   []Order
@@ -27,8 +34,8 @@ func TestCreateTrade(t *testing.T) {
 		{
 			name: "Partial Fill (Standard)",
 			setupOrders: []Order{
-				{Symbol: "BTC", Price: 100, Quantity: 10, Side: "BUY"},
-				{Symbol: "BTC", Price: 100, Quantity: 10, Side: "SELL"},
+				{Symbol: "BTC", Price: 100, Quantity: 10, Side: "BUY", UserID: u.ID},
+				{Symbol: "BTC", Price: 100, Quantity: 10, Side: "SELL", UserID: u.ID},
 			},
 			tradeQty:    4,
 			expectError: false,
@@ -37,8 +44,8 @@ func TestCreateTrade(t *testing.T) {
 		{
 			name: "Full Fill (Liquidity Consumed)",
 			setupOrders: []Order{
-				{Symbol: "ETH", Price: 2000, Quantity: 5, Side: "BUY"},
-				{Symbol: "ETH", Price: 2000, Quantity: 5, Side: "SELL"},
+				{Symbol: "ETH", Price: 2000, Quantity: 5, Side: "BUY", UserID: u.ID},
+				{Symbol: "ETH", Price: 2000, Quantity: 5, Side: "SELL", UserID: u.ID},
 			},
 			tradeQty:    5,
 			expectError: false,
@@ -47,8 +54,8 @@ func TestCreateTrade(t *testing.T) {
 		{
 			name: "Invalid Order IDs (Foreign Key Check)",
 			setupOrders: []Order{
-				{Symbol: "SOL", Price: 50, Quantity: 10, Side: "BUY"},
-				{Symbol: "SOL", Price: 50, Quantity: 10, Side: "SELL"},
+				{Symbol: "SOL", Price: 50, Quantity: 10, Side: "BUY", UserID: u.ID},
+				{Symbol: "SOL", Price: 50, Quantity: 10, Side: "SELL", UserID: u.ID},
 			},
 			tradeQty:      2,
 			useInvalidIDs: true,
@@ -62,6 +69,7 @@ func TestCreateTrade(t *testing.T) {
 
 			var buyID, sellID string
 			for _, o := range tc.setupOrders {
+				o.UserID = u.ID
 				id, err := storage.CreateOrder(ctx, o)
 
 				if err != nil {
@@ -117,6 +125,13 @@ func TestGetRecentTrades(t *testing.T) {
 	storage := NewStorage(tx)
 	ctx := context.Background()
 
+	user := User{Username: "recent_trade_user", PasswordHash: "hash"}
+	u, userError := storage.CreateUser(ctx, &user)
+
+	if userError != nil {
+		t.Fatalf("Failed to create test user for recent trades: %v", userError)
+	}
+
 	_, err := tx.Exec(ctx, `
 		INSERT INTO trading_pairs (symbol, base_asset, quote_asset, is_active) 
 		VALUES ('BTC-USD', 'BTC', 'USD', true)
@@ -130,20 +145,20 @@ func TestGetRecentTrades(t *testing.T) {
 	var bidID, askID string
 
 	err = tx.QueryRow(ctx, `
-		INSERT INTO orders (symbol, side, price, quantity, status) 
-		VALUES ('BTC-USD', 'BUY', 50000, 1, 'FILLED') 
-		RETURNING id
-	`).Scan(&bidID)
+    INSERT INTO orders (user_id, symbol, side, price, quantity, status) 
+    VALUES ($1, 'BTC-USD', 'BUY', 50000, 1, 'FILLED') 
+    RETURNING id
+  `, u.ID).Scan(&bidID)
 
 	if err != nil {
 		t.Fatal("Failed to create bid order:", err)
 	}
 
 	err = tx.QueryRow(ctx, `
-		INSERT INTO orders (symbol, side, price, quantity, status) 
-		VALUES ('BTC-USD', 'SELL', 50000, 1, 'FILLED') 
-		RETURNING id
-	`).Scan(&askID)
+    INSERT INTO orders (user_id, symbol, side, price, quantity, status) 
+    VALUES ($1, 'BTC-USD', 'SELL', 50000, 1, 'FILLED') 
+    RETURNING id
+  `, u.ID).Scan(&askID)
 
 	if err != nil {
 		t.Fatal("Failed to create ask order:", err)

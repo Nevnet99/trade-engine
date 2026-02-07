@@ -12,11 +12,20 @@ func TestCreateOrder(t *testing.T) {
 	storage := NewStorage(tx)
 	ctx := context.Background()
 
+	user := User{Username: "test_trader", PasswordHash: "hashed_password"}
+
+	u, err := storage.CreateUser(ctx, &user)
+
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
 	newOrder := Order{
 		Symbol:   "TEST-BTC",
 		Price:    50000.00,
 		Quantity: 1,
 		Side:     "BUY",
+		UserID:   u.ID,
 	}
 
 	id, err := storage.CreateOrder(ctx, newOrder)
@@ -39,10 +48,18 @@ func TestGetBestBuyOrder(t *testing.T) {
 	storage := NewStorage(tx)
 	ctx := context.Background()
 
+	user := User{Username: "test_trader", PasswordHash: "hashed_password"}
+
+	u, err := storage.CreateUser(ctx, &user)
+
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
 	orders := []Order{
-		{Symbol: "BTC-USD", Price: 50000, Quantity: 1, Side: "BUY"},
-		{Symbol: "BTC-USD", Price: 52000, Quantity: 1, Side: "BUY"},
-		{Symbol: "BTC-USD", Price: 51000, Quantity: 1, Side: "BUY"},
+		{Symbol: "BTC-USD", Price: 50000, Quantity: 1, Side: "BUY", UserID: u.ID},
+		{Symbol: "BTC-USD", Price: 52000, Quantity: 1, Side: "BUY", UserID: u.ID},
+		{Symbol: "BTC-USD", Price: 51000, Quantity: 1, Side: "BUY", UserID: u.ID},
 	}
 
 	for _, o := range orders {
@@ -71,10 +88,18 @@ func TestGetBestSellOrder(t *testing.T) {
 	storage := NewStorage(tx)
 	ctx := context.Background()
 
+	user := User{Username: "test_trader", PasswordHash: "hashed_password"}
+
+	u, err := storage.CreateUser(ctx, &user)
+
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
 	orders := []Order{
-		{Symbol: "BTC-USD", Price: 60000, Quantity: 1, Side: "SELL"}, // Expensive
-		{Symbol: "BTC-USD", Price: 49000, Quantity: 1, Side: "SELL"}, // Winner!
-		{Symbol: "BTC-USD", Price: 50000, Quantity: 1, Side: "SELL"}, // Mid
+		{Symbol: "BTC-USD", Price: 60000, Quantity: 1, Side: "SELL", UserID: u.ID}, // Expensive
+		{Symbol: "BTC-USD", Price: 49000, Quantity: 1, Side: "SELL", UserID: u.ID}, // Winner!
+		{Symbol: "BTC-USD", Price: 50000, Quantity: 1, Side: "SELL", UserID: u.ID}, // Mid
 	}
 
 	for _, o := range orders {
@@ -113,12 +138,20 @@ func TestGetOrderBook(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	user := User{Username: "test_trader", PasswordHash: "hashed_password"}
+
+	u, userErr := storage.CreateUser(ctx, &user)
+
+	if userErr != nil {
+		t.Fatalf("Failed to create test user: %v", userErr)
+	}
+
 	orders := []Order{
-		{Symbol: "BTC-USD", Side: "BUY", Price: 50000, Quantity: 1, Status: "PENDING"},
-		{Symbol: "BTC-USD", Side: "BUY", Price: 50000, Quantity: 2, Status: "PENDING"},
-		{Symbol: "BTC-USD", Side: "BUY", Price: 49000, Quantity: 5, Status: "PENDING"},
-		{Symbol: "BTC-USD", Side: "BUY", Price: 55000, Quantity: 10, Status: "FILLED"},
-		{Symbol: "BTC-USD", Side: "SELL", Price: 51000, Quantity: 10, Status: "PENDING"},
+		{Symbol: "BTC-USD", Side: "BUY", Price: 50000, Quantity: 1, Status: "PENDING", UserID: u.ID},
+		{Symbol: "BTC-USD", Side: "BUY", Price: 50000, Quantity: 2, Status: "PENDING", UserID: u.ID},
+		{Symbol: "BTC-USD", Side: "BUY", Price: 49000, Quantity: 5, Status: "PENDING", UserID: u.ID},
+		{Symbol: "BTC-USD", Side: "BUY", Price: 55000, Quantity: 10, Status: "FILLED", UserID: u.ID},
+		{Symbol: "BTC-USD", Side: "SELL", Price: 51000, Quantity: 10, Status: "PENDING", UserID: u.ID},
 	}
 
 	for _, o := range orders {

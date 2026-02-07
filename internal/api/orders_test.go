@@ -12,6 +12,19 @@ import (
 	"github.com/Nevnet99/trade-engine/internal/testutils"
 )
 
+func createTestUser(t *testing.T, storage *store.Storage) *store.User {
+	user := &store.User{
+		Username:     "test_trader",
+		PasswordHash: "hashed_secret",
+	}
+
+	u, err := storage.CreateUser(context.Background(), user)
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+	return u
+}
+
 func TestCreateOrderAPI(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -49,22 +62,24 @@ func TestCreateOrderAPI(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tx := testutils.SetupTestDB(t)
 			storage := store.NewStorage(tx)
-
 			server := NewServer(storage)
 
+			user := createTestUser(t, storage)
+
 			b, _ := json.Marshal(tt.body)
-
 			buffer := bytes.NewBuffer(b)
-
 			request := httptest.NewRequest("POST", "/trade", buffer)
+
+			ctx := context.WithValue(request.Context(), UserIDKey, user.ID)
+			request = request.WithContext(ctx)
+
 			response := httptest.NewRecorder()
 
 			server.CreateOrder(response, request)
 
 			if response.Code != tt.expectedStatus {
-				t.Errorf("Test %s failed: expected status %d, got %d", tt.name, tt.expectedStatus, response.Code)
+				t.Errorf("Test %s failed: expected status %d, got %d. Body: %s", tt.name, tt.expectedStatus, response.Code, response.Body.String())
 			}
-
 		})
 	}
 }
